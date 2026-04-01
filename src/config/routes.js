@@ -32,9 +32,11 @@ export const routes = {
   }
 };
 
+export const baseURL = "https://etumax.vercel.app";
+
 export const defaultSEO = {
   title: 'Etumax Official Store',
   description: 'Premium health and wellness products.',
-  canonicalBase: 'https://etumax.vercel.app',
-  defaultImage: 'https://etumax.vercel.app/logo.png'
+  canonicalBase: baseURL,
+  defaultImage: baseURL + '/logo.png'
 };

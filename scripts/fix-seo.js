@@ -6,11 +6,12 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 // Import central route configuration
 import { routes as STATIC_ROUTES, defaultSEO } from '../src/config/routes.js';
+import { baseURL } from '../src/config/routes.js';
 
 // --- CONFIGURATION ---
-const CANONICAL_DOMAIN = defaultSEO.canonicalBase || "https://etumax.vercel.app";
+const CANONICAL_DOMAIN = defaultSEO.canonicalBase || baseURL;
 const DIST_PATH = './dist';
-const DEFAULT_IMAGE = defaultSEO.defaultImage || "https://etumax.vercel.app/logo.png";
+const DEFAULT_IMAGE = defaultSEO.defaultImage || baseURL + '/logo.png';
 
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCkZGZfrdC-at2c3HDVCg_qqMZhtei2oXo",
