@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, onSnapshot } from "firebase/firestore";
+import { getFirestore, collection, onSnapshot, doc, getDoc } from "firebase/firestore";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -99,6 +99,35 @@ const fixSEO = async () => {
   }
   const baseHtml = fs.readFileSync(path.join(DIST_PATH, 'index.html'), 'utf-8');
 
+  console.log("🌍 Fetching Global Store Settings from Firestore...");
+  let activeStoreName = defaultSEO.store;
+  let activeSiteTitle = defaultSEO.title;
+  let activeSiteDescription = defaultSEO.description;
+
+  try {
+    const generalSettingsDoc = await getDoc(doc(db, "settings", "generalSettings"));
+    if (generalSettingsDoc.exists()) {
+      const gs = generalSettingsDoc.data();
+      if (gs.storeName) {
+        activeStoreName = gs.storeName;
+        activeSiteTitle = gs.storeName; // Title = Store Name
+        activeSiteDescription = gs.description 
+      }
+    }
+
+    const seoSettingsDoc = await getDoc(doc(db, "settings", "seo"));
+    if (seoSettingsDoc.exists()) {
+      const ss = seoSettingsDoc.data()?.general || {};
+      // Description = Site Tagline / Meta Description
+      if (ss.title) activeSiteTitle = ss.title; // If Site Title is set, it overrides Store Name in Home Title
+      if (ss.metaDescription) activeSiteDescription = ss.metaDescription;
+    }
+    console.log(` ✅ Store Name (Title): ${activeStoreName}`);
+    console.log(` ✅ Site Tagline (Description): ${activeSiteDescription}`);
+  } catch (error) {
+    console.warn("⚠️ Could not fetch settings. Using defaults from routes.js.");
+  }
+
   console.log("📄 Processing static routes...");
   for (const [route, meta] of Object.entries(STATIC_ROUTES)) {
     const targetPath = route === '/' ? path.join(DIST_PATH, 'index.html') : path.join(DIST_PATH, route.startsWith('/') ? route.substring(1) : route, 'index.html');
@@ -106,7 +135,12 @@ const fixSEO = async () => {
         const folder = path.dirname(targetPath);
         if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
     }
-    const updatedHtml = injectMetaTags(baseHtml, { ...meta, url: route === '/' ? CANONICAL_DOMAIN : `${CANONICAL_DOMAIN}${route}/`, image: meta.image });
+    const updatedHtml = injectMetaTags(baseHtml, { 
+      title: route === '/' ? activeSiteTitle : (meta.title || activeSiteTitle), 
+      description: route === '/' ? activeSiteDescription : (meta.description || activeSiteDescription), 
+      url: route === '/' ? CANONICAL_DOMAIN : `${CANONICAL_DOMAIN}${route}/`, 
+      image: meta.image 
+    });
     fs.writeFileSync(targetPath, updatedHtml);
     console.log(` ✅ Generated: ${route}`);
   }
@@ -120,7 +154,7 @@ const fixSEO = async () => {
       const folderPath = path.join(DIST_PATH, 'product', slug);
       if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
       const price = p.price ? ` - Only AED ${p.price}` : '';
-      const productTitle = `${p.name}${price} | Etumax Official Store`;
+      const productTitle = `${p.name}${price} | ${activeStoreName}`;
       const productDesc = stripHtml(p.description || p.metaDescription || p.shortDescription || "").substring(0, 350);
       const productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
       const updatedHtml = injectMetaTags(baseHtml, { 

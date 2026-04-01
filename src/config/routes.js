@@ -32,11 +32,17 @@ export const routes = {
   }
 };
 
-export const baseURL = "https://etumax.vercel.app";
+export const baseURL = (typeof window !== 'undefined' ? window.location.origin : '') || "https://etumaxgulf.com";
 
+/**
+ * Default SEO configuration used as a fallback.
+ * NOTE: The 'title' and 'description' below are automatically overridden by 
+ * your Admin Settings (Store Name/Tagline) during the static SEO build process.
+ */
 export const defaultSEO = {
-  title: 'Etumax Official Store',
-  description: 'Premium health and wellness products.',
+  store: 'Etumax GULF',
+  title: 'Your HealthCare Destination', // This will be the Store Name
+  description: 'Premium health and wellness products.', // This will be the Tagline
   canonicalBase: baseURL,
   defaultImage: baseURL + '/logo.png'
 };
