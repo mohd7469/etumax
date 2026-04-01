@@ -31,7 +31,25 @@ const normalizeSlug = (slug) => {
   const strSlug = String(slug);
   let decoded = strSlug;
   try { decoded = decodeURIComponent(strSlug); } catch (e) { decoded = strSlug; }
-  return decoded.trim().toLowerCase().replace(/\|/g, '-').replace(/\s+/g, '-').replace(/[^\p{L}\p{N}\-_]+/gu, '-').replace(/-+/g, '-').replace(/^-+|-+$/g, '');
+  return decoded
+    .normalize('NFKC')
+    .trim()
+    .toLowerCase()
+    .replace(/\|/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/[^\p{L}\p{N}\p{M}\-_]+/gu, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+};
+
+const escapeHtml = (text) => {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
 };
 
 const generateSlug = (productName) => productName ? normalizeSlug(productName) : '';
@@ -40,20 +58,23 @@ const injectMetaTags = (html, metadata) => {
   const { title, description, url, image } = metadata;
   const finalImage = image || DEFAULT_IMAGE;
   
+  const escapedTitle = escapeHtml(title);
+  const escapedDescription = escapeHtml(description);
+  
   const tags = `
-    <title>${title}</title>
-    <meta name="title" content="${title}">
-    <meta name="description" content="${description}">
+    <title>${escapedTitle}</title>
+    <meta name="title" content="${escapedTitle}">
+    <meta name="description" content="${escapedDescription}">
     <link rel="canonical" href="${url}">
     <meta property="og:type" content="website">
     <meta property="og:url" content="${url}">
-    <meta property="og:title" content="${title}">
-    <meta property="og:description" content="${description}">
+    <meta property="og:title" content="${escapedTitle}">
+    <meta property="og:description" content="${escapedDescription}">
     <meta property="og:image" content="${finalImage}">
     <meta property="twitter:card" content="summary_large_image">
     <meta property="twitter:url" content="${url}">
-    <meta property="twitter:title" content="${title}">
-    <meta property="twitter:description" content="${description}">
+    <meta property="twitter:title" content="${escapedTitle}">
+    <meta property="twitter:description" content="${escapedDescription}">
     <meta property="twitter:image" content="${finalImage}">
   `;
 
@@ -102,7 +123,12 @@ const fixSEO = async () => {
       const productTitle = `${p.name}${price} | Etumax Official Store`;
       const productDesc = stripHtml(p.description || p.metaDescription || p.shortDescription || "").substring(0, 350);
       const productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
-      const updatedHtml = injectMetaTags(baseHtml, { title: productTitle, description: productDesc, url: `${CANONICAL_DOMAIN}/product/${slug}/`, image: productImage });
+      const updatedHtml = injectMetaTags(baseHtml, { 
+        title: productTitle, 
+        description: productDesc, 
+        url: `${CANONICAL_DOMAIN}/product/${encodeURIComponent(slug)}/`, 
+        image: productImage 
+      });
       fs.writeFileSync(path.join(folderPath, 'index.html'), updatedHtml);
     });
     console.log("✅ All static product pages generated!");

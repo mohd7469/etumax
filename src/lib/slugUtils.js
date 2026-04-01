@@ -15,12 +15,13 @@ export const normalizeSlug = (slug) => {
   }
   
   return decoded
+    .normalize('NFKC')
     .trim()
     .toLowerCase()
     .replace(/\|/g, '-') // Replace pipes with hyphens
     .replace(/\s+/g, '-') // Replace spaces with hyphens
-    // Remove characters that are NOT Unicode letters, numbers, hyphens, or underscores
-    .replace(/[^\p{L}\p{N}\-_]+/gu, '-')
+    // Remove characters that are NOT Unicode letters, numbers, marks, hyphens, or underscores
+    .replace(/[^\p{L}\p{N}\p{M}\-_]+/gu, '-')
     .replace(/-+/g, '-') // Collapse multiple hyphens
     .replace(/^-+|-+$/g, ''); // Remove leading/trailing hyphens
 };
