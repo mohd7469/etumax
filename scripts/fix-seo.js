@@ -100,7 +100,7 @@ const fixSEO = async () => {
       if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
       const price = p.price ? ` - Only AED ${p.price}` : '';
       const productTitle = `${p.name}${price} | Etumax Official Store`;
-      const productDesc = stripHtml(p.metaDescription || p.shortDescription || p.description || "").substring(0, 160);
+      const productDesc = stripHtml(p.description || p.metaDescription || p.shortDescription || "").substring(0, 350);
       const productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
       const updatedHtml = injectMetaTags(baseHtml, { title: productTitle, description: productDesc, url: `${CANONICAL_DOMAIN}/product/${slug}/`, image: productImage });
       fs.writeFileSync(path.join(folderPath, 'index.html'), updatedHtml);

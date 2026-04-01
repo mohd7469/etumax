@@ -466,7 +466,11 @@ const ProductDetailPage = ({
 
   const productCats = useMemo(() => normalizeCategories(product?.categories), [product?.categories]);
   const fallbackTitle = useMemo(() => getFallbackProductTitle(product), [product]);
-  const productDescription = useMemo(() => getFallbackDescriptionText(product), [product]);
+  const productDescription = useMemo(() => {
+    // For SEO meta tags, we prioritize the full/detailed description and use a longer limit
+    const raw = product?.description || product?.metaDescription || product?.shortDescription || '';
+    return makePlainText(raw).slice(0, 350);
+  }, [product]);
   const shortDescriptionHtml = useMemo(() => getFallbackShortDescriptionHtml(product), [product]);
   const fullDescriptionHtml = useMemo(() => getFallbackDescriptionHtml(product), [product]);
   const fallbackBrand = useMemo(() => getFallbackBrand(product), [product]);
