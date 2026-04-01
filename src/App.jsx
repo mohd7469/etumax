@@ -87,7 +87,7 @@ import MetaInjector from '@/components/seo/MetaInjector';
 import SitemapRenderer from '@/components/seo/SitemapRenderer';
 import ProductSitemapRenderer from '@/components/seo/ProductSitemapRenderer';
 import { ProductSitemapXml, CategorySitemapXml } from '@/components/seo/RawXmlSitemaps';
-import OpenGraphMeta from '@/components/seo/OpenGraphMeta';
+import SEO from '@/components/SEO';
 import { injectHeaderCode, injectFooterCode, injectCustomCSS } from '@/lib/codeInjection';
 import { initializeFirestoreCollections } from '@/lib/firestoreInit';
 import { initializeGoogleTranslate } from '@/lib/GoogleTranslateManager';
@@ -346,19 +346,12 @@ function AppContent() {
       <CustomCodeInjector />
 
       {!isXmlRoute && (
-        <>
-          <Helmet prioritizeSeoTags>
-            <title>{finalTitle}</title>
-            <meta name="description" content={finalDescription} />
-          </Helmet>
-
-          <OpenGraphMeta
-            title={finalTitle}
-            description={finalDescription}
-            type={ogType}
-            siteName={defaultTitle}
-          />
-        </>
+        <SEO 
+          title={productRouteMatch ? finalTitle : undefined}
+          description={productRouteMatch ? finalDescription : undefined}
+          type={ogType}
+          image={productRouteMatch ? (currentProduct?.mainImage || currentProduct?.image) : undefined}
+        />
       )}
 
       {!isXmlRoute && <GlobalCartNotification navigateTo={navigateTo} />}
