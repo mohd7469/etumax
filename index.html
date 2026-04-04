@@ -81,54 +81,37 @@
   <script type="module" src="/src/main.jsx"></script>
 
   <script>
-    (function () {
-      // 1. Service Worker Removal (Foran khatam karne ke liye)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function (registrations) {
-          if (registrations.length > 0) {
-            for (let registration of registrations) {
-              registration.unregister().then(function (success) {
-                if (success) {
-                  console.log('SW Unregistered Successfully');
-                  window.location.reload(true);
-                }
-              });
-            }
-          }
-        });
-      }
-
-      // 2. Cache Storage Cleanup (Purani images/products saaf karne ke liye)
-      if ('caches' in window) {
-        caches.keys().then(function (names) {
-          for (let name of names) {
-            caches.delete(name).then(function () {
-              console.log('Cache Storage Cleared: ', name);
+    // Priority 1: Service Worker ko har haal mein marna hai
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistrations().then(function (registrations) {
+        if (registrations.length > 0) {
+          registrations.forEach(function (registration) {
+            registration.unregister().then(function () {
+              console.log('SW Unregistered Successfully');
+              // Cache saaf karke foran refresh
+              if ('caches' in window) {
+                caches.keys().then(function (names) {
+                  for (let name of names) caches.delete(name);
+                });
+              }
+              window.location.reload(true);
             });
-          }
-        });
-      }
+          });
+        }
+      });
+    }
 
-      // 3. Smart Date-Based LocalStorage Cleanup
-      // Hum "Date" (e.g., "4/5/2026") save karenge miliseconds ke bajaye
+    // Priority 2: Next Day / First Time Cleanup
+    (function () {
       const today = new Date().toLocaleDateString();
       const lastClearDate = localStorage.getItem('last_clear_date');
 
-      // Condition: Agar pehli dafa hai (null) YA date badal chuki hai (Next Day)
       if (!lastClearDate || lastClearDate !== today) {
-
-        // Puri storage saaf karein
         localStorage.clear();
-
-        // Nayi date save karein taake aaj ke din dobara clear na ho
         localStorage.setItem('last_clear_date', today);
-
-        console.log('New Day Cleanup Triggered for: ' + today);
-
-        // Force refresh taake server se fresh products load hon
-        setTimeout(() => {
-          window.location.reload(true);
-        }, 500);
+        console.log('New Day/First Time: LocalStorage Cleared');
+        // Agar SW nahi tha phir bhi fresh load ke liye refresh karein
+        setTimeout(() => { window.location.reload(true); }, 200);
       }
     })();
   </script>
