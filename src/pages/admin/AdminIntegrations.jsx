@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ShoppingCart, Package, Users, Tag, Plus, RefreshCw, Trash2, ShieldCheck, Link2, AlertTriangle, CheckCircle, Database, FileText, Image as ImageIcon, Star, XCircle } from 'lucide-react';
+import { ShoppingCart, Package, Users, Tag, Plus, RefreshCw, Trash2, ShieldCheck, Link2, AlertTriangle, CheckCircle, Database, FileText, Image as ImageIcon, Star, XCircle, ArrowRight } from 'lucide-react';
 import { useWooCommerce } from '@/context/WooCommerceContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +16,7 @@ import { getDocument, setDocument } from '@/lib/firestoreService';
 import SyncCard from '@/components/admin/SyncCard';
 import StoreManagementModal from '@/components/admin/StoreManagementModal';
 import { toast } from '@/components/ui/use-toast';
+import { useNavigate } from 'react-router-dom';
 
 const defaultLimits = {
   products: 100, orders: 100, customers: 100,
@@ -34,6 +36,7 @@ const AdminIntegrations = () => {
   const [formKey, setFormKey] = useState('');
   const [formSecret, setFormSecret] = useState('');
   const [syncInterval, setSyncInterval] = useState(autoSyncConfig.interval.toString());
+  const navigate = useNavigate();
   
   const [syncLimits, setSyncLimits] = useState(defaultLimits);
 
@@ -77,12 +80,33 @@ const AdminIntegrations = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <h1 className="text-3xl font-bold">WooCommerce Integrations</h1>
-        <Button onClick={() => setIsStoreModalOpen(true)}>
-          <Plus className="w-4 h-4 mr-2" /> Add Store
-        </Button>
+        <div className="flex gap-2">
+          {isConnected && (
+            <Button variant="secondary" onClick={() => navigate('/admin/woocommerce-sync')}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Staged Sync Workflow
+            </Button>
+          )}
+          <Button onClick={() => setIsStoreModalOpen(true)}>
+            <Plus className="w-4 h-4 mr-2" /> Add Store
+          </Button>
+        </div>
       </div>
+
+      {isConnected && (
+        <div className="bg-primary/5 border border-primary/20 rounded-lg p-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+          <div>
+            <h3 className="font-semibold text-primary flex items-center gap-2">
+              <Package className="w-5 h-5" /> Try the New Two-Stage Product Sync
+            </h3>
+            <p className="text-sm text-muted-foreground mt-1">Review and select WooCommerce products before importing them into your store.</p>
+          </div>
+          <Button onClick={() => navigate('/admin/woocommerce-sync')}>
+            Launch Sync Workflow <ArrowRight className="w-4 h-4 ml-2" />
+          </Button>
+        </div>
+      )}
 
       <StoreManagementModal 
         isOpen={isStoreModalOpen} 
@@ -184,15 +208,15 @@ const AdminIntegrations = () => {
                 <CardHeader>
                   <CardTitle className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <RefreshCw className="w-5 h-5" /> Data Synchronization
+                      <RefreshCw className="w-5 h-5" /> Automated Data Synchronization
                     </div>
                     {anySyncRunning && (
                       <Button variant="destructive" size="sm" onClick={stopAllSyncs}>
-                        <XCircle className="w-4 h-4 mr-2" /> Stop All Syncs
+                        <XCircle className="w-4 h-4 mr-2" /> Stop All
                       </Button>
                     )}
                   </CardTitle>
-                  <CardDescription>Trigger and monitor synchronization for {activeStore?.name}.</CardDescription>
+                  <CardDescription>Trigger automated one-way syncs from WooCommerce to your platform.</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {anySyncRunning && (
@@ -207,7 +231,7 @@ const AdminIntegrations = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <SyncCard
-                      title="Products"
+                      title="Products (Auto)"
                       icon={Package}
                       lastSync={lastSyncTime[`${activeStoreId}_products`]}
                       limit={syncLimits.products}
@@ -271,17 +295,6 @@ const AdminIntegrations = () => {
                       onStop={() => stopSync('media')}
                       isSyncing={syncInProgress.media}
                       colorClass="text-pink-600"
-                    />
-                    <SyncCard
-                      title="Reviews"
-                      icon={Star}
-                      lastSync={lastSyncTime[`${activeStoreId}_reviews`]}
-                      limit={syncLimits.reviews}
-                      onLimitChange={(v) => handleLimitChange('reviews', v)}
-                      onSync={() => syncReviews(syncLimits.reviews)}
-                      onStop={() => stopSync('reviews')}
-                      isSyncing={syncInProgress.reviews}
-                      colorClass="text-yellow-500"
                     />
                   </div>
 

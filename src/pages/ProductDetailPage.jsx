@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   ShoppingCart,
   Heart,
@@ -113,8 +113,8 @@ const getSafeProductImages = (product) => {
       : product?.mainImage
         ? [product.mainImage]
         : [
-            'https://images.unsplash.com/photo-1572635196237-14b3f281503f?q=80&w=2080&auto=format&fit=crop',
-          ];
+          'https://images.unsplash.com/photo-1572635196237-14b3f281503f?q=80&w=2080&auto=format&fit=crop',
+        ];
 
   return images;
 };
@@ -449,7 +449,19 @@ const ProductDetailPage = ({
   });
   const [stockUrgency, setStockUrgency] = useState(5);
 
+  const [isImageOpen, setIsImageOpen] = useState(false);
+  const [zoomScale, setZoomScale] = useState(1);
+  const [imageTranslate, setImageTranslate] = useState({ x: 0, y: 0 });
+  const [isDraggingZoomedImage, setIsDraggingZoomedImage] = useState(false);
+
   const tabsRef = useRef(null);
+  const touchStartXRef = useRef(0);
+  const touchEndXRef = useRef(0);
+  const pinchStartDistanceRef = useRef(0);
+  const pinchStartScaleRef = useRef(1);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const lastTapTimeRef = useRef(0);
+
   const isMobileView = isPreview && previewMode === 'mobile';
 
   const detailLayout = useMemo(() => getPageLayoutSettings('detail'), [getPageLayoutSettings]);
@@ -467,7 +479,6 @@ const ProductDetailPage = ({
   const productCats = useMemo(() => normalizeCategories(product?.categories), [product?.categories]);
   const fallbackTitle = useMemo(() => getFallbackProductTitle(product), [product]);
   const productDescription = useMemo(() => {
-    // For SEO meta tags, we prioritize the full/detailed description and use a longer limit
     const raw = product?.description || product?.metaDescription || product?.shortDescription || '';
     return makePlainText(raw).slice(0, 350);
   }, [product]);
@@ -585,11 +596,185 @@ const ProductDetailPage = ({
         'https://images.unsplash.com/photo-1572635196237-14b3f281503f?q=80&w=2080&auto=format&fit=crop';
     }
 
-    img = getOptimizedOGImageUrl(img) || img;
+    img = getOptimizedOGImageUrl(img, product.name, product.price) || img;
     return validateAndNormalizeImageUrl(img);
   }, [product]);
 
   const safePrice = getSafePrice(product);
+
+  const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+  const getTouchDistance = (touches) => {
+    if (!touches || touches.length < 2) return 0;
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const resetZoomState = () => {
+    setZoomScale(1);
+    setImageTranslate({ x: 0, y: 0 });
+    setIsDraggingZoomedImage(false);
+    pinchStartDistanceRef.current = 0;
+    pinchStartScaleRef.current = 1;
+  };
+
+  const openImagePreview = () => {
+    setIsImageOpen(true);
+    resetZoomState();
+  };
+
+  const closeImagePreview = () => {
+    setIsImageOpen(false);
+    resetZoomState();
+  };
+
+  const nextImage = () =>
+    setMainImageIndex((prev) => (prev + 1) % productImages.length);
+
+  const prevImage = () =>
+    setMainImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
+
+  const handleGalleryTouchStart = (e) => {
+    if (isImageOpen || productImages.length <= 1) return;
+    touchStartXRef.current = e.changedTouches[0].clientX;
+    touchEndXRef.current = e.changedTouches[0].clientX;
+  };
+
+  const handleGalleryTouchMove = (e) => {
+    if (isImageOpen || productImages.length <= 1) return;
+    touchEndXRef.current = e.changedTouches[0].clientX;
+  };
+
+  const handleGalleryTouchEnd = () => {
+    if (isImageOpen || productImages.length <= 1) return;
+
+    const startX = touchStartXRef.current;
+    const endX = touchEndXRef.current;
+    const diff = startX - endX;
+
+    if (Math.abs(diff) < 40) return;
+
+    if (diff > 0) {
+      nextImage();
+    } else {
+      prevImage();
+    }
+  };
+
+  const handleModalTouchStart = (e) => {
+    if (e.touches.length === 2) {
+      pinchStartDistanceRef.current = getTouchDistance(e.touches);
+      pinchStartScaleRef.current = zoomScale;
+      setIsDraggingZoomedImage(false);
+      return;
+    }
+
+    if (e.touches.length === 1) {
+      const now = Date.now();
+      const timeSinceLastTap = now - lastTapTimeRef.current;
+
+      if (timeSinceLastTap < 280) {
+        setZoomScale((prev) => {
+          const nextScale = prev > 1 ? 1 : 2.5;
+          if (nextScale === 1) {
+            setImageTranslate({ x: 0, y: 0 });
+          }
+          return nextScale;
+        });
+      }
+
+      lastTapTimeRef.current = now;
+
+      dragStartRef.current = {
+        x: e.touches[0].clientX - imageTranslate.x,
+        y: e.touches[0].clientY - imageTranslate.y,
+      };
+
+      if (zoomScale > 1) {
+        setIsDraggingZoomedImage(true);
+      }
+    }
+  };
+
+  const handleModalTouchMove = (e) => {
+    if (e.touches.length === 2) {
+      const currentDistance = getTouchDistance(e.touches);
+      if (!pinchStartDistanceRef.current) return;
+
+      const scaleRatio = currentDistance / pinchStartDistanceRef.current;
+      const nextScale = clamp(pinchStartScaleRef.current * scaleRatio, 1, 4);
+      setZoomScale(nextScale);
+
+      if (nextScale <= 1.02) {
+        setImageTranslate({ x: 0, y: 0 });
+      }
+
+      return;
+    }
+
+    if (e.touches.length === 1 && zoomScale > 1) {
+      e.preventDefault();
+
+      const nextX = e.touches[0].clientX - dragStartRef.current.x;
+      const nextY = e.touches[0].clientY - dragStartRef.current.y;
+      const maxOffset = Math.max(60, (zoomScale - 1) * 140);
+
+      setImageTranslate({
+        x: clamp(nextX, -maxOffset, maxOffset),
+        y: clamp(nextY, -maxOffset, maxOffset),
+      });
+    }
+  };
+
+  const handleModalTouchEnd = () => {
+    setIsDraggingZoomedImage(false);
+    pinchStartDistanceRef.current = 0;
+
+    if (zoomScale <= 1.02) {
+      setZoomScale(1);
+      setImageTranslate({ x: 0, y: 0 });
+    }
+  };
+
+  const handleModalMouseDown = (e) => {
+    if (zoomScale <= 1) return;
+
+    setIsDraggingZoomedImage(true);
+    dragStartRef.current = {
+      x: e.clientX - imageTranslate.x,
+      y: e.clientY - imageTranslate.y,
+    };
+  };
+
+  const handleModalMouseMove = (e) => {
+    if (!isDraggingZoomedImage || zoomScale <= 1) return;
+
+    const nextX = e.clientX - dragStartRef.current.x;
+    const nextY = e.clientY - dragStartRef.current.y;
+    const maxOffset = Math.max(60, (zoomScale - 1) * 140);
+
+    setImageTranslate({
+      x: clamp(nextX, -maxOffset, maxOffset),
+      y: clamp(nextY, -maxOffset, maxOffset),
+    });
+  };
+
+  const handleModalMouseUp = () => {
+    setIsDraggingZoomedImage(false);
+  };
+
+  const handleModalDoubleClick = (e) => {
+    e.stopPropagation();
+
+    setZoomScale((prev) => {
+      const nextScale = prev > 1 ? 1 : 2.5;
+      if (nextScale === 1) {
+        setImageTranslate({ x: 0, y: 0 });
+      }
+      return nextScale;
+    });
+  };
 
   useEffect(() => {
     if (product && product.id && !isPreview) addRecentlyViewed(product.id);
@@ -600,6 +785,8 @@ const ProductDetailPage = ({
     setMainImageIndex(0);
     setQuantity(1);
     setSelectedOptions({});
+    resetZoomState();
+    setIsImageOpen(false);
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
   }, [product?.id, slug]);
 
@@ -649,6 +836,32 @@ const ProductDetailPage = ({
 
     sessionStorage.setItem(viewItemKey, 'true');
   }, [product, isPreview, slug, safePrice, fallbackTitle, productCats, fallbackBrand]);
+
+  useEffect(() => {
+    if (!isImageOpen) return;
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        closeImagePreview();
+      } else if (e.key === 'ArrowRight' && productImages.length > 1) {
+        nextImage();
+      } else if (e.key === 'ArrowLeft' && productImages.length > 1) {
+        prevImage();
+      }
+    };
+
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = '';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isImageOpen, productImages.length]);
+
+  useEffect(() => {
+    resetZoomState();
+  }, [mainImageIndex]);
 
   if (isLoading && !product) {
     return (
@@ -979,12 +1192,6 @@ const ProductDetailPage = ({
         }
       : null;
 
-  const nextImage = () =>
-    setMainImageIndex((prev) => (prev + 1) % productImages.length);
-
-  const prevImage = () =>
-    setMainImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
-
   const getElementStyle = (elementId) => {
     const element = orderedLayout.find((el) => el.id === elementId);
 
@@ -1006,21 +1213,34 @@ const ProductDetailPage = ({
       case 'gallery':
         return (
           <div className="space-y-3">
-            <div className="relative aspect-square rounded-2xl overflow-hidden border border-border/60 bg-card/60 backdrop-blur-sm group shadow-sm">
+            <div
+              className="relative aspect-square rounded-2xl overflow-hidden border border-border/60 bg-card/60 backdrop-blur-sm group shadow-sm touch-pan-y"
+              onTouchStart={handleGalleryTouchStart}
+              onTouchMove={handleGalleryTouchMove}
+              onTouchEnd={handleGalleryTouchEnd}
+            >
+              <button
+                type="button"
+                onClick={openImagePreview}
+                className="absolute inset-0 z-[1] cursor-zoom-in"
+                aria-label="Open image preview"
+              />
+
               <ProductImage
                 alt={fallbackTitle}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover select-none pointer-events-none"
                 src={mainImage}
                 aspectRatio="square"
                 lazy={false}
               />
+
               {productImages.length > 1 && (
                 <>
                   <Button
                     onClick={prevImage}
                     variant="outline"
                     size="icon"
-                    className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full w-9 h-9 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90"
+                    className="absolute left-2 top-1/2 z-[2] -translate-y-1/2 rounded-full w-9 h-9 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
@@ -1028,7 +1248,7 @@ const ProductDetailPage = ({
                     onClick={nextImage}
                     variant="outline"
                     size="icon"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full w-9 h-9 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90"
+                    className="absolute right-2 top-1/2 z-[2] -translate-y-1/2 rounded-full w-9 h-9 opacity-0 group-hover:opacity-100 transition-opacity bg-background/90"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Button>
@@ -1608,6 +1828,79 @@ const ProductDetailPage = ({
             <div key={el.id}>{renderElement(el)}</div>
           ))}
       </div>
+
+      <AnimatePresence>
+        {isImageOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: 'easeOut' }}
+            className="fixed inset-0 z-[999] bg-black/92 backdrop-blur-sm flex items-center justify-center p-4 md:p-6"
+            onClick={() => closeImagePreview()}
+            onMouseMove={handleModalMouseMove}
+            onMouseUp={handleModalMouseUp}
+            onMouseLeave={handleModalMouseUp}
+          >
+            <motion.button
+              type="button"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              transition={{ duration: 0.18 }}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeImagePreview();
+              }}
+              className="absolute top-4 right-4 z-[1001] flex h-11 w-11 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white text-xl backdrop-blur-md"
+              aria-label="Close preview"
+            >
+              ✕
+            </motion.button>
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 8 }}
+              transition={{ duration: 0.25, ease: 'easeOut' }}
+              className="relative inline-flex max-w-full max-h-full items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <motion.img
+                key={mainImage}
+                src={mainImage}
+                alt={fallbackTitle}
+                draggable={false}
+                onDoubleClick={handleModalDoubleClick}
+                onMouseDown={handleModalMouseDown}
+                onTouchStart={handleModalTouchStart}
+                onTouchMove={handleModalTouchMove}
+                onTouchEnd={handleModalTouchEnd}
+                animate={{
+                  scale: zoomScale,
+                  x: imageTranslate.x,
+                  y: imageTranslate.y,
+                }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 260,
+                  damping: 28,
+                }}
+                className={cn(
+                  'block max-w-[92vw] max-h-[88vh] object-contain select-none will-change-transform',
+                  zoomScale > 1 ? 'cursor-grab' : 'cursor-zoom-in',
+                  isDraggingZoomedImage && 'cursor-grabbing'
+                )}
+                style={{
+                  touchAction: zoomScale > 1 ? 'none' : 'manipulation',
+                }}
+              />
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+
     </div>
   );
 };

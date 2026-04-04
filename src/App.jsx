@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate, useParams, Navigate, matchPath } from 'react-router-dom';
-import { Helmet, HelmetProvider } from 'react-helmet-async';
+import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/toaster';
 import Header from '@/components/layout/Header';
 import Footer from '@/components/layout/Footer';
@@ -28,6 +29,7 @@ import AdminCustomers from '@/pages/admin/AdminCustomers';
 import AdminAnalytics from '@/pages/admin/AdminAnalytics';
 import AdminSettings from '@/pages/admin/AdminSettings';
 import AdminIntegrations from '@/pages/admin/AdminIntegrations';
+import AdminWooCommerceSync from '@/pages/admin/AdminWooCommerceSync';
 import AdminWhatsApp from '@/pages/admin/AdminWhatsApp';
 import AdminPages from '@/pages/admin/AdminPages';
 import AdminCategories from '@/pages/admin/AdminCategories';
@@ -154,76 +156,41 @@ const DynamicPageWrapper = () => {
 
 const CustomCssInjector = () => {
   const { customCss } = useDesign();
-
-  useEffect(() => {
-    const cleanup = injectCustomCSS(customCss);
-    return () => cleanup();
-  }, [customCss]);
-
+  useEffect(() => { const cleanup = injectCustomCSS(customCss); return () => cleanup(); }, [customCss]);
   return null;
 };
 
 const CustomCodeInjector = () => {
   const { headerFooterCode } = useDesign();
-
   useEffect(() => {
     if (headerFooterCode?.header) injectHeaderCode(headerFooterCode.header);
     if (headerFooterCode?.footer) injectFooterCode(headerFooterCode.footer);
   }, [headerFooterCode]);
-
   return null;
 };
 
 const ProtectedRoute = ({ children }) => {
   const { user } = useUser();
   const location = useLocation();
-
-  if (!user || !user.isAdmin) {
-    return <Navigate to="/account" state={{ from: location }} replace />;
-  }
-
+  if (!user || !user.isAdmin) return <Navigate to="/account" state={{ from: location }} replace />;
   return children;
 };
 
 const GlobalCartNotification = ({ navigateTo }) => {
   const { cartItems, notificationTrigger } = useCart();
   const [isVisible, setIsVisible] = useState(false);
-
-  useEffect(() => {
-    if (notificationTrigger > 0) setIsVisible(true);
-  }, [notificationTrigger]);
-
+  useEffect(() => { if (notificationTrigger > 0) setIsVisible(true); }, [notificationTrigger]);
   return (
-    <CartNotificationPopup
-      isVisible={isVisible}
-      onClose={() => setIsVisible(false)}
-      cartItems={cartItems}
-      onNavigateToCart={() => {
-        setIsVisible(false);
-        navigateTo('cart');
-      }}
-    />
+    <CartNotificationPopup isVisible={isVisible} onClose={() => setIsVisible(false)} cartItems={cartItems} onNavigateToCart={() => { setIsVisible(false); navigateTo('cart'); }} />
   );
 };
 
 const AppInitializer = ({ children }) => {
   const { isInitialized } = useAppInit();
-
-  useEffect(() => {
-    initializeFirestoreCollections();
-  }, []);
-
-  if (!isInitialized) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div>
-          <p className="mt-4 text-sm text-muted-foreground">Loading store...</p>
-        </div>
-      </div>
-    );
-  }
-
+  useEffect(() => { initializeFirestoreCollections(); }, []);
+  if (!isInitialized) return (
+    <div className="fixed inset-0 flex items-center justify-center bg-background"><div className="text-center"><div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent motion-reduce:animate-[spin_1.5s_linear_infinite]"></div><p className="mt-4 text-sm text-muted-foreground">Loading store...</p></div></div>
+  );
   return children;
 };
 
@@ -237,104 +204,41 @@ function AppContent() {
 
   const isAdminRoute = location.pathname.startsWith('/admin');
   const isXmlRoute = location.pathname.endsWith('.xml');
-  const [notificationSettings] = useState({
-    position: 'bottom-right',
-    enabled: true,
-  });
+  const [notificationSettings] = useState({ position: 'bottom-right', enabled: true });
 
-  useEffect(() => {
-    // Initialize Google Translate plugin
-    initializeGoogleTranslate();
-  }, []);
+  useEffect(() => { initializeGoogleTranslate(); }, []);
 
   const navigateTo = (page, data = {}) => {
     let path = '/';
-
-    if (page.startsWith('/')) {
-      path = page;
-    } else {
+    if (page.startsWith('/')) path = page;
+    else {
       switch (page) {
-        case 'home':
-          path = '/';
-          break;
-        case 'products':
-          path = data.category ? `/products/${encodeURIComponent(data.category)}` : '/products';
-          break;
-        case 'product-detail':
-          path = `/product/${encodeURIComponent(data.product.slug || data.product.id)}`;
-          break;
-        case 'cart':
-          path = '/cart';
-          break;
-        case 'checkout':
-          path = '/checkout';
-          break;
-        case 'account':
-          path = '/account';
-          break;
-        case 'wishlist':
-          path = '/wishlist';
-          break;
-        case 'search':
-          path = `/search?query=${encodeURIComponent(data.query)}`;
-          break;
-        case 'track-order':
-          path = '/track-order';
-          break;
-        case 'order-confirmation':
-          path = `/order-confirmation/${data.orderId}`;
-          break;
-        case 'categories':
-          path = '/categories';
-          break;
-        case 'contact':
-          path = '/contact';
-          break;
-        default:
-          path = '/';
+        case 'home': path = '/'; break;
+        case 'products': path = data.category ? `/products/${encodeURIComponent(data.category)}` : '/products'; break;
+        case 'product-detail': path = `/product/${encodeURIComponent(data.product.slug || data.product.id)}`; break;
+        case 'cart': path = '/cart'; break;
+        case 'checkout': path = '/checkout'; break;
+        case 'account': path = '/account'; break;
+        case 'wishlist': path = '/wishlist'; break;
+        case 'search': path = `/search?query=${encodeURIComponent(data.query)}`; break;
+        case 'track-order': path = '/track-order'; break;
+        case 'order-confirmation': path = `/order-confirmation/${data.orderId}`; break;
+        case 'categories': path = '/categories'; break;
+        case 'contact': path = '/contact'; break;
+        default: path = '/';
       }
     }
-
     navigate(path);
   };
 
-  const stripHtmlText = (value = '') =>
-    String(value).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-
+  const stripHtmlText = (value = '') => String(value).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
   const productRouteMatch = matchPath('/product/:slug', location.pathname);
-
-  const currentProduct = productRouteMatch?.params?.slug
-    ? getProductBySlug(decodeURIComponent(productRouteMatch.params.slug))
-    : null;
-
-  const productTitle =
-    currentProduct?.seoTitle ||
-    currentProduct?.metaTitle ||
-    currentProduct?.name ||
-    currentProduct?.title ||
-    '';
-
-  const defaultTitle =
-    storeSettings?.storeName ||
-    generalSettings?.title ||
-    '';
-
-  const defaultDescription =
-    generalSettings?.metaDescription ||
-    '';
-
+  const currentProduct = productRouteMatch?.params?.slug ? getProductBySlug(decodeURIComponent(productRouteMatch.params.slug)) : null;
+  const productTitle = currentProduct?.seoTitle || currentProduct?.metaTitle || currentProduct?.name || currentProduct?.title || '';
+  const defaultTitle = storeSettings?.storeName || generalSettings?.title || '';
+  const defaultDescription = generalSettings?.metaDescription || '';
   const finalTitle = productRouteMatch ? productTitle : defaultTitle;
-
-  const finalDescription = productRouteMatch
-    ? stripHtmlText(
-        currentProduct?.metaDescription ||
-        currentProduct?.shortDescription ||
-        currentProduct?.short_description ||
-        currentProduct?.description ||
-        ''
-      )
-    : stripHtmlText(defaultDescription);
-
+  const finalDescription = productRouteMatch ? stripHtmlText(currentProduct?.metaDescription || currentProduct?.shortDescription || currentProduct?.short_description || currentProduct?.description || '') : stripHtmlText(defaultDescription);
   const ogType = productRouteMatch ? 'product' : 'website';
 
   return (
@@ -373,6 +277,7 @@ function AppContent() {
                     <Route path="/customers" element={<AdminCustomers />} />
                     <Route path="/analytics" element={<AdminAnalytics />} />
                     <Route path="/integrations" element={<AdminIntegrations />} />
+                    <Route path="/woocommerce-sync" element={<AdminWooCommerceSync />} />
                     <Route path="/whatsapp" element={<AdminWhatsApp />} />
                     <Route path="/settings" element={<AdminSettings />} />
                     <Route path="/pages" element={<AdminPages />} />
@@ -410,14 +315,7 @@ function AppContent() {
             )}
             <MobileLayoutWrapper>
               <Routes>
-                <Route
-                  path="/"
-                  element={
-                    <LayoutWrapper pageType="home">
-                      <HomePage navigateTo={navigateTo} />
-                    </LayoutWrapper>
-                  }
-                />
+                <Route path="/" element={<LayoutWrapper pageType="home"><HomePage navigateTo={navigateTo} /></LayoutWrapper>} />
                 <Route path="/products" element={<ProductListingWrapper navigateTo={navigateTo} />} />
                 <Route path="/products/:category" element={<ProductListingWrapper navigateTo={navigateTo} />} />
                 <Route path="/categories" element={<LayoutWrapper pageType="listing"><CategoriesPage navigateTo={navigateTo} /></LayoutWrapper>} />
@@ -431,7 +329,6 @@ function AppContent() {
                 <Route path="/order-confirmation/:orderId?" element={<OrderConfirmationPage navigateTo={navigateTo} />} />
                 <Route path="/contact" element={<ContactPage />} />
 
-                {/* Policy Pages */}
                 <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
                 <Route path="/terms-conditions" element={<TermsConditionsPage />} />
                 <Route path="/refund-policy" element={<RefundPolicyPage />} />

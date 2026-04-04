@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
@@ -197,16 +198,17 @@ const CartPage = ({ navigateTo }) => {
   );
 
   const subtotal = getCartSubtotal();
-  const freeShippingThreshold = checkoutSettings?.freeShippingThreshold || 500;
-  const shippingCost =
-    subtotal >= freeShippingThreshold ? 0 : checkoutSettings?.deliveryCharge || 0;
+  const freeShippingThreshold = checkoutSettings?.freeShippingThreshold ?? Infinity;
+  const deliveryCharge = checkoutSettings?.deliveryCharge || 0;
+  
+  const shippingCost = subtotal >= freeShippingThreshold ? 0 : deliveryCharge;
 
   const couponDiscount = discount || 0;
   const totalSavings = productDiscount + couponDiscount;
   const totalAmount = Math.max(0, subtotal - couponDiscount + shippingCost);
 
-  const remainingForFreeDelivery = Math.max(0, freeShippingThreshold - subtotal);
-  const progressPercentage = Math.min(100, (subtotal / freeShippingThreshold) * 100);
+  const remainingForFreeDelivery = freeShippingThreshold === Infinity ? 0 : Math.max(0, freeShippingThreshold - subtotal);
+  const progressPercentage = freeShippingThreshold === Infinity ? 100 : Math.min(100, (subtotal / freeShippingThreshold) * 100);
 
   useEffect(() => {
     if (!cartItems || cartItems.length === 0) return;
@@ -554,48 +556,54 @@ const CartPage = ({ navigateTo }) => {
                 )}
 
                 <div className="pt-3 pb-1 border-t">
-                  {remainingForFreeDelivery > 0 ? (
-                    <div className="mb-2 text-sm text-gray-700">
-                      Add{' '}
-                      <span className="font-bold text-primary">
-                        {formatPrice(remainingForFreeDelivery)}
-                      </span>{' '}
-                      more of non mega deal items to get a{' '}
-                      <span className="font-bold">free delivery</span>
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <button className="ml-1 text-primary hover:underline font-medium inline-flex items-center">
-                              learn more <Info className="w-3 h-3 ml-0.5" />
-                            </button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="max-w-xs">
-                              Free delivery applies to standard items. Mega deals and
-                              oversized items are excluded.
-                            </p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    </div>
-                  ) : (
-                    <div className="mb-2 text-sm text-green-600 font-bold flex items-center gap-1.5">
-                      🎉 You qualify for free delivery!
-                    </div>
+                  {freeShippingThreshold !== Infinity && (
+                    <>
+                      {remainingForFreeDelivery > 0 ? (
+                        <div className="mb-2 text-sm text-gray-700">
+                          Add{' '}
+                          <span className="font-bold text-primary">
+                            {formatPrice(remainingForFreeDelivery)}
+                          </span>{' '}
+                          more to get{' '}
+                          <span className="font-bold">free delivery</span>
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <button className="ml-1 text-primary hover:underline font-medium inline-flex items-center">
+                                  learn more <Info className="w-3 h-3 ml-0.5" />
+                                </button>
+                              </TooltipTrigger>
+                              <TooltipContent>
+                                <p className="max-w-xs">
+                                  Free delivery applies to standard items. Mega deals and
+                                  oversized items are excluded.
+                                </p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        </div>
+                      ) : (
+                        <div className="mb-2 text-sm text-green-600 font-bold flex items-center gap-1.5">
+                          🎉 You qualify for free delivery!
+                        </div>
+                      )}
+
+                      <div className="relative pt-1 mb-3">
+                        <Progress value={progressPercentage} className="h-2.5 bg-gray-100" />
+                      </div>
+                    </>
                   )}
 
-                  <div className="relative pt-1">
-                    <Progress value={progressPercentage} className="h-2.5 bg-gray-100" />
+                  <div className="flex justify-between mt-3">
+                    <span className="text-gray-600">Shipping Cost</span>
+                    <span className="font-semibold text-gray-900">
+                      {shippingCost === 0 ? (
+                        <span className="text-green-600 font-bold">FREE</span>
+                      ) : (
+                        formatPrice(shippingCost)
+                      )}
+                    </span>
                   </div>
-
-                  {shippingCost > 0 && (
-                    <div className="flex justify-between mt-3">
-                      <span className="text-gray-600">Standard Shipping</span>
-                      <span className="font-semibold text-gray-900">
-                        {formatPrice(shippingCost)}
-                      </span>
-                    </div>
-                  )}
                 </div>
               </div>
 

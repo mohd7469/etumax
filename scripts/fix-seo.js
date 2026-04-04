@@ -1,9 +1,9 @@
-
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, onSnapshot, doc, getDoc } from "firebase/firestore";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import process from 'process';
 // Import central route configuration
 import { routes as STATIC_ROUTES, defaultSEO } from '../src/config/routes.js';
 import { baseURL } from '../src/config/routes.js';
@@ -13,13 +13,13 @@ const CANONICAL_DOMAIN = defaultSEO.canonicalBase || baseURL;
 const DIST_PATH = './dist';
 const DEFAULT_IMAGE = defaultSEO.defaultImage || baseURL + '/logo.png';
 
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyCkZGZfrdC-at2c3HDVCg_qqMZhtei2oXo",
-  authDomain: "test-28-mar.firebaseapp.com",
-  projectId: "test-28-mar",
-  storageBucket: "test-28-mar.firebasestorage.app",
-  messagingSenderId: "956303936022",
-  appId: "1:956303936022:web:a0150702f258d9eb58c337"
+const firebaseConfig = {
+  apiKey: "AIzaSyCj5YhAoZ7THB2_aCq9UTB8Fq7QlOFkqwg",
+  authDomain: "project-4a63e079-13f8-45c1-834.firebaseapp.com",
+  projectId: "project-4a63e079-13f8-45c1-834",
+  storageBucket: "project-4a63e079-13f8-45c1-834.firebasestorage.app",
+  messagingSenderId: "302761923409",
+  appId: "1:302761923409:web:b7872f4dc4ee5b698df970"
 };
 // --- END CONFIGURATION ---
 
@@ -57,10 +57,10 @@ const generateSlug = (productName) => productName ? normalizeSlug(productName) :
 const injectMetaTags = (html, metadata) => {
   const { title, description, url, image } = metadata;
   const finalImage = image || DEFAULT_IMAGE;
-  
+
   const escapedTitle = escapeHtml(title);
   const escapedDescription = escapeHtml(description);
-  
+
   const tags = `
     <title>${escapedTitle}</title>
     <meta name="title" content="${escapedTitle}">
@@ -88,7 +88,7 @@ const injectMetaTags = (html, metadata) => {
 
 const stripHtml = (html) => html ? html.replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim() : '';
 
-const app = initializeApp(FIREBASE_CONFIG);
+const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
 const fixSEO = async () => {
@@ -111,7 +111,7 @@ const fixSEO = async () => {
       if (gs.storeName) {
         activeStoreName = gs.storeName;
         activeSiteTitle = gs.storeName; // Title = Store Name
-        activeSiteDescription = gs.description 
+        activeSiteDescription = gs.description
       }
     }
 
@@ -132,55 +132,49 @@ const fixSEO = async () => {
   for (const [route, meta] of Object.entries(STATIC_ROUTES)) {
     const targetPath = route === '/' ? path.join(DIST_PATH, 'index.html') : path.join(DIST_PATH, route.startsWith('/') ? route.substring(1) : route, 'index.html');
     if (route !== '/') {
-        const folder = path.dirname(targetPath);
-        if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
+      const folder = path.dirname(targetPath);
+      if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
     }
-    const updatedHtml = injectMetaTags(baseHtml, { 
-      title: route === '/' ? activeSiteTitle : (meta.title || activeSiteTitle), 
-      description: route === '/' ? activeSiteDescription : (meta.description || activeSiteDescription), 
-      url: route === '/' ? CANONICAL_DOMAIN : `${CANONICAL_DOMAIN}${route}/`, 
-      image: meta.image 
+    const updatedHtml = injectMetaTags(baseHtml, {
+      title: route === '/' ? activeSiteTitle : (meta.title || activeSiteTitle),
+      description: route === '/' ? activeSiteDescription : (meta.description || activeSiteDescription),
+      url: route === '/' ? CANONICAL_DOMAIN : `${CANONICAL_DOMAIN}${route}/`,
+      image: meta.image
     });
     fs.writeFileSync(targetPath, updatedHtml);
     console.log(` ✅ Generated: ${route}`);
   }
 
   console.log("📦 Fetching products from Firestore...");
-  try {
-    const snapshot = await getDocs(collection(db, "products"));
-    const total = snapshot.size;
-    console.log(`✨ Found ${total} products. Injecting tags...`);
-    
+  const unsub = onSnapshot(collection(db, "products"), (snapshot) => {
+    console.log(`✨ Found ${snapshot.size} products. Injecting tags...`);
     snapshot.forEach((doc) => {
       const p = doc.data();
-      const slug = p.slug || generateSlug(p.name) || doc.id;
+      const slug = p.slug || generateSlug(p.name) || p.id;
       const folderPath = path.join(DIST_PATH, 'product', slug);
       if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
-      
       const price = p.price ? ` - Only AED ${p.price}` : '';
       const productTitle = `${p.name}${price} | ${activeStoreName}`;
       const productDesc = stripHtml(p.description || p.metaDescription || p.shortDescription || "").substring(0, 350);
-      let productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
-      
-      // Wrap with wsrv.nl CDN for instant optimization (< 600KB)
-      if (productImage && productImage.startsWith('http')) {
-        productImage = `https://wsrv.nl/?url=${encodeURIComponent(productImage)}&w=1200&h=630&fit=contain&bg=ffffff&output=jpg&q=70&il`;
-      }
-
-      const updatedHtml = injectMetaTags(baseHtml, { 
-        title: productTitle, 
-        description: productDesc, 
-        url: `${CANONICAL_DOMAIN}/product/${encodeURIComponent(slug)}/`, 
-        image: productImage 
+      const productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
+      const updatedHtml = injectMetaTags(baseHtml, {
+        title: productTitle,
+        description: productDesc,
+        url: `${CANONICAL_DOMAIN}/product/${encodeURIComponent(slug)}/`,
+        image: productImage
       });
       fs.writeFileSync(path.join(folderPath, 'index.html'), updatedHtml);
     });
-    
-    console.log("✅ All static product pages generated successfully!");
+    console.log("✅ All static product pages generated!");
+    unsub();
     process.exit(0);
-  } catch (error) {
-    console.error("❌ Error fetching products:", error);
+  }, (error) => {
+    console.error("❌ Firebase error:", error);
     process.exit(1);
-  }
+  });
+  setTimeout(() => {
+    console.warn("⚠️ Snapshot timeout. Closing script.");
+    process.exit(0);
+  }, 30000);
 };
 fixSEO();

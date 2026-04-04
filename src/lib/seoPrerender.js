@@ -7,9 +7,9 @@ export const generateOpenGraphTags = (product) => {
   const url = typeof window !== 'undefined' ? `${window.location.origin}/product/${product.slug || product.id}` : '';
   const title = product.seoTitle || product.metaTitle || product.name || 'Product';
   const description = (product.metaDescription || product.shortDescription || product.description || '').replace(/<[^>]*>/g, ' ').substring(0, 160);
-  
+
   let image = product.mainImage || (product.images && product.images.length > 0 ? product.images[0] : '');
-  image = getOptimizedOGImageUrl(image) || image;
+  image = getOptimizedOGImageUrl(image, product.name, product.price) || image;
 
   return [
     { property: 'og:title', content: title },
@@ -25,9 +25,9 @@ export const generateTwitterCardTags = (product) => {
 
   const title = product.seoTitle || product.metaTitle || product.name || 'Product';
   const description = (product.metaDescription || product.shortDescription || product.description || '').replace(/<[^>]*>/g, ' ').substring(0, 160);
-  
+
   let image = product.mainImage || (product.images && product.images.length > 0 ? product.images[0] : '');
-  image = getOptimizedOGImageUrl(image) || image;
+  image = getOptimizedOGImageUrl(image, product.name, product.price) || image;
 
   return [
     { name: 'twitter:card', content: 'summary_large_image' },
@@ -84,19 +84,19 @@ export const injectMetaTags = (tags) => {
   if (!tags || !Array.isArray(tags) || typeof document === 'undefined') return;
 
   tags.forEach((tag) => {
-    const selector = tag.property 
-      ? `meta[property="${tag.property}"]` 
+    const selector = tag.property
+      ? `meta[property="${tag.property}"]`
       : `meta[name="${tag.name}"]`;
-    
+
     let element = document.querySelector(selector);
-    
+
     if (!element) {
       element = document.createElement('meta');
       if (tag.property) element.setAttribute('property', tag.property);
       if (tag.name) element.setAttribute('name', tag.name);
       document.head.appendChild(element);
     }
-    
+
     element.setAttribute('content', tag.content || '');
   });
 };

@@ -1,11 +1,27 @@
 import { createWooCommerceOrder, updateWooCommerceOrder, fetchWooCommerceOrders } from './woocommerceService';
 import { logOrderSync, logOrderSyncError } from './orderLogger';
-import { updateDocument } from './firestoreService';
+import { updateDocument, queryDocuments, setDocument } from './firestoreService';
 
 export const syncNewOrderToWooCommerce = async (firestoreOrder, wooCommerceConfig) => {
   try {
     if (!wooCommerceConfig?.isConnected) {
       throw new Error('WooCommerce is not connected');
+    }
+
+    // DUPLICATE DETECTION: Check if order already exists in WooCommerce/Firestore mapping
+    if (firestoreOrder.wooCommerceOrderId) {
+      const existingOrders = await queryDocuments('orders', [
+        { type: 'where', field: 'wooCommerceOrderId', operator: '==', value: String(firestoreOrder.wooCommerceOrderId) }
+      ]);
+      
+      if (existingOrders && existingOrders.length > 0) {
+        console.log(`Order ${firestoreOrder.wooCommerceOrderId} already exists, skipping duplicate`);
+        return {
+          success: true,
+          wooCommerceOrderId: String(firestoreOrder.wooCommerceOrderId),
+          skipped: true
+        };
+      }
     }
 
     const { storeUrl, consumerKey, consumerSecret } = wooCommerceConfig.credentials;
@@ -14,6 +30,7 @@ export const syncNewOrderToWooCommerce = async (firestoreOrder, wooCommerceConfi
       first_name: firestoreOrder.shippingAddress?.first_name || '',
       last_name: firestoreOrder.shippingAddress?.last_name || '',
       address_1: firestoreOrder.shippingAddress?.address_1 || '',
+      address_2: firestoreOrder.shippingAddress?.address_2 || '',
       city: firestoreOrder.shippingAddress?.city || '',
       email: firestoreOrder.shippingAddress?.email || '',
       phone: firestoreOrder.shippingAddress?.phone || '',
@@ -40,8 +57,9 @@ export const syncNewOrderToWooCommerce = async (firestoreOrder, wooCommerceConfi
       payment_method_title = 'Credit Card';
     }
 
+    // Changed default 'pending' to 'processing'
     const wcStatusMap = {
-      'pending': 'pending',
+      'pending': 'processing',
       'processing': 'processing',
       'completed': 'completed',
       'cancelled': 'cancelled'
@@ -54,7 +72,7 @@ export const syncNewOrderToWooCommerce = async (firestoreOrder, wooCommerceConfi
       billing,
       shipping: billing,
       line_items,
-      status: wcStatusMap[firestoreOrder.status] || 'pending',
+      status: wcStatusMap[firestoreOrder.status] || 'processing', // Changed default to 'processing'
       customer_note: firestoreOrder.shippingAddress?.order_notes || '',
       meta_data: [
         { key: '_firestore_order_id', value: firestoreOrder.id },
@@ -124,13 +142,13 @@ export const syncOrderStatusUpdate = async (firestoreOrderId, newStatus, wooComm
       throw new Error('No WooCommerce Order ID associated with this order');
     }
 
-    let wcStatus = 'pending';
+    let wcStatus = 'processing'; // Changed default to 'processing'
     switch (newStatus) {
       case 'processing': wcStatus = 'processing'; break;
       case 'completed': wcStatus = 'completed'; break;
       case 'cancelled': wcStatus = 'cancelled'; break;
       case 'refunded': wcStatus = 'refunded'; break;
-      default: wcStatus = 'pending';
+      default: wcStatus = 'processing'; // Changed default
     }
 
     await updateWooCommerceOrder(storeUrl, consumerKey, consumerSecret, wooCommerceOrderId, { status: wcStatus });
@@ -147,9 +165,6 @@ export const syncWooCommerceOrderStatusToFirestore = async (wooCommerceOrderId, 
      if (!wooCommerceConfig?.isConnected || !wooCommerceOrderId) return false;
      const { storeUrl, consumerKey, consumerSecret } = wooCommerceConfig.credentials;
      
-     // Fetch specific order using fetchWooCommerceOrders (assuming it allows ID fetch if we modify it or we fetch list)
-     // Actually WooCommerce API gets specific order via /wp-json/wc/v3/orders/<id>
-     // Since fetchWooCommerceOrders gets list, we can just do a direct fetch:
      const url = `${storeUrl.replace(/\/$/, '')}/wp-json/wc/v3/orders/${wooCommerceOrderId}`;
      const authHeader = 'Basic ' + btoa(`${consumerKey}:${consumerSecret}`);
      const res = await fetch(url, { headers: { Authorization: authHeader } });
@@ -157,8 +172,9 @@ export const syncWooCommerceOrderStatusToFirestore = async (wooCommerceOrderId, 
      
      const wcOrder = await res.json();
      
-     let fsStatus = 'pending';
+     let fsStatus = 'processing'; // Changed default to processing
      switch(wcOrder.status) {
+       case 'pending': fsStatus = 'processing'; break; // Treat WC pending as processing locally
        case 'processing': fsStatus = 'processing'; break;
        case 'completed': fsStatus = 'completed'; break;
        case 'cancelled': fsStatus = 'cancelled'; break;
@@ -184,6 +200,47 @@ export const syncOrderMetadata = async (firestoreOrderId, wooCommerceOrderId, me
    } catch(e) {
      return false;
    }
+};
+
+// Function to handle creating/syncing new orders FROM WooCommerce to Firestore
+export const syncOrderFromWooCommerce = async (wcOrder) => {
+  try {
+    // DUPLICATE DETECTION
+    const existingOrders = await queryDocuments('orders', [
+      { type: 'where', field: 'wooCommerceOrderId', operator: '==', value: String(wcOrder.id) }
+    ]);
+
+    if (existingOrders && existingOrders.length > 0) {
+      console.log(`Order ${wcOrder.id} already exists, skipping duplicate`);
+      return { success: true, skipped: true, id: existingOrders[0].id };
+    }
+
+    const newOrder = {
+      id: `wc_ord_${wcOrder.id}`,
+      wooCommerceOrderId: String(wcOrder.id),
+      status: 'processing', // Changed from Pending to Processing
+      createdAt: new Date(wcOrder.date_created || Date.now()).toISOString(),
+      total: parseFloat(wcOrder.total || 0),
+      subtotal: parseFloat(wcOrder.total || 0) - parseFloat(wcOrder.total_tax || 0),
+      paymentMethod: wcOrder.payment_method === 'stripe' ? 'card' : 'cod',
+      shippingAddress: wcOrder.shipping || wcOrder.billing || {},
+      items: (wcOrder.line_items || []).map(item => ({
+        id: item.product_id,
+        wc_id: String(item.product_id),
+        name: item.name,
+        quantity: item.quantity,
+        price: parseFloat(item.price || 0)
+      })),
+      syncStatus: 'synced',
+      syncSource: 'woocommerce'
+    };
+
+    await setDocument('orders', newOrder.id, newOrder);
+    return { success: true, id: newOrder.id };
+  } catch (error) {
+    console.error('Error syncing order from WooCommerce:', error);
+    return { success: false, error: error.message };
+  }
 };
 
 // Also export syncNewOrderToWooCommerce as syncOrderToWooCommerce to prevent breaking existing retry services

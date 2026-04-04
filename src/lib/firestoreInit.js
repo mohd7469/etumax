@@ -1,4 +1,3 @@
-
 import { getDocument, setDocument } from './firestoreService';
 import { policyStarterContent } from './policyStarterContent';
 
@@ -9,8 +8,8 @@ export const initializeFirestoreCollections = async () => {
         storeName: 'My Store',
         currencySymbol: 'AED',
         currencyPosition: 'before',
-        deliveryCharge: 9.0,
-        freeShippingThreshold: 500.0,
+        deliveryCharge: '',
+        freeShippingThreshold: '',
       },
       contactPageSettings: {
         heading: "Get in Touch",
@@ -30,8 +29,8 @@ export const initializeFirestoreCollections = async () => {
       default: {
         enableCreditCard: false,
         enableCashOnDelivery: true,
-        deliveryCharge: 9.0,
-        freeShippingThreshold: 500.0,
+        deliveryCharge: '',
+        freeShippingThreshold: '',
         enableGoogleMaps: true,
         checkoutFields: []
       }

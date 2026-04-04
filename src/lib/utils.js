@@ -49,7 +49,7 @@ export const imageCache = {
   set: (key, value) => {
     try {
       localStorage.setItem(`img_cache_${key}`, JSON.stringify({ url: value, timestamp: Date.now() }));
-    } catch (e) {}
+    } catch (e) { }
   },
   get: (key) => {
     try {
@@ -59,7 +59,7 @@ export const imageCache = {
         if (Date.now() - timestamp < 24 * 60 * 60 * 1000) return url;
         localStorage.removeItem(`img_cache_${key}`);
       }
-    } catch (e) {}
+    } catch (e) { }
     return null;
   }
 };
@@ -118,4 +118,36 @@ export const getProductSlug = (product) => {
       .replace(/(^-|-$)+/g, '');
   }
   return product.id || Math.random().toString(36).substr(2, 9);
+};
+
+/**
+ * Optimizes an image URL by wrapping it in an image proxy (weserv.nl).
+ * This significantly reduces file size by resizing and compressing on-the-fly.
+ */
+export const optimizeImage = (url, width = 600, quality = 80) => {
+  if (!url || typeof url !== 'string' || url.trim() === '') return url;
+
+  // Skip optimization for local assets, blobs, data URIs, or local dev URLs
+  if (
+    url.startsWith('/') ||
+    url.startsWith('data:') ||
+    url.startsWith('blob:') ||
+    url.includes('localhost') ||
+    url.includes('127.0.0.1')
+  ) {
+    return url;
+  }
+
+  try {
+    // If it's already a weserv URL, don't wrap it again
+    if (url.includes('images.weserv.nl')) return url;
+
+    // Clean URL (remove some common UTM but keep Firebase tokens)
+    const cleanUrl = url.split('#')[0];
+
+    // w: width, q: quality, output: format, fit: how to resize
+    return `https://images.weserv.nl/?url=${encodeURIComponent(cleanUrl)}&w=${width}&q=${quality}&output=webp&fit=cover`;
+  } catch (e) {
+    return url;
+  }
 };

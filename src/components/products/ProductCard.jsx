@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { Heart, Star, ShoppingCart } from 'lucide-react';
 import { useUser } from '@/context/UserContext';
 import { useCart } from '@/context/CartContext';
 import { Link } from 'react-router-dom';
@@ -10,6 +9,7 @@ import { isValidImageUrl } from '@/lib/utils';
 import { useProducts } from '@/context/ProductContext';
 import { useDesign } from '@/context/DesignContext';
 import { useReviews } from '@/context/ReviewContext';
+import { Heart, Star, ShoppingCart } from 'lucide-react';
 
 const ProductCard = ({ product }) => {
   const { toggleWishlist, wishlist } = useUser();
@@ -18,10 +18,8 @@ const ProductCard = ({ product }) => {
   const { productPageLayout } = useDesign();
   const { getReviewStatsForProduct } = useReviews();
 
-  // Fetch live review stats
   const stats = getReviewStatsForProduct(product?.id);
 
-  // Calculate rating and count with fallbacks
   const { displayRating, displayCount } = useMemo(() => {
     if (!product) return { displayRating: '0.0', displayCount: 0 };
 
@@ -106,11 +104,24 @@ const ProductCard = ({ product }) => {
       ? product.categories[0] || ''
       : product.categories || '';
 
+  // Improved stock status logic to accurately reflect admin panel settings including explicitly checking for "Out of Stock"
+  let isProductInStock = true;
+  
+  const stockStatusRaw = String(product.stockStatus || product.stock_status || '').toLowerCase().trim();
+  
+  if (stockStatusRaw === 'out of stock' || stockStatusRaw === 'outofstock') {
+    isProductInStock = false;
+  } else if (product.manageStock && typeof product.stockQuantity === 'number' && product.stockQuantity <= 0) {
+    isProductInStock = false;
+  } else if (product.inStock === false) {
+    isProductInStock = false;
+  }
+
   const handleAddToCart = (e) => {
     e.stopPropagation();
     e.preventDefault();
 
-    if (product.inStock || product.stockStatus === 'instock') {
+    if (isProductInStock) {
       addToCart(product);
 
       window.dataLayer = window.dataLayer || [];
@@ -141,6 +152,7 @@ const ProductCard = ({ product }) => {
       toast({
         variant: 'destructive',
         title: 'Out of Stock',
+        description: 'Sorry, this item is currently unavailable.',
       });
     }
   };
@@ -163,6 +175,40 @@ const ProductCard = ({ product }) => {
               SALE -{discount}%
             </div>
           )}
+
+          {/* STOCK ICON */}
+          <div className="absolute left-2 bottom-2 z-10">
+            {isProductInStock ? (
+              <div className="relative flex items-center justify-center">
+                <span className="absolute h-2.5 w-2.5 rounded-full bg-green-400 opacity-60 blur-[2px] animate-slow-ping"></span>
+                <div className="h-1 w-1 rounded-full bg-green-500"></div>
+              </div>
+            ) : (
+              <div className="relative flex items-center justify-center">
+                <span className="absolute h-2.0 w-2.0 rounded-full bg-red-400 opacity-60 blur-[2px] animate-slow-ping"></span>
+                <div className="h-1 w-1 rounded-full bg-red-500"></div>
+              </div>
+            )}
+          </div>
+
+          <style>
+            {`
+            @keyframes slowPing {
+              0% {
+                transform: scale(1);
+                opacity: 0.3;
+              }
+              70%, 100% {
+                transform: scale(1.8);
+                opacity: 0;
+              }
+            }
+
+            .animate-slow-ping {
+              animation: slowPing 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+            }
+            `}
+          </style>
 
           <button
             onClick={handleToggleWishlist}
@@ -221,11 +267,16 @@ const ProductCard = ({ product }) => {
 
             <button
               onClick={handleAddToCart}
-              className="inline-flex items-center justify-center gap-1.5 bg-primary text-primary-foreground text-[10px] sm:text-[11px] font-medium px-3 sm:px-4 h-9 rounded-full hover:bg-primary/90 transition shrink-0 whitespace-nowrap"
-              aria-label={`Add ${product.name} to cart`}
+              className={`inline-flex items-center justify-center gap-1.5 text-[10px] sm:text-[11px] font-medium px-3 h-8 rounded-full transition shrink-0 whitespace-nowrap ${
+                isProductInStock 
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
+              disabled={!isProductInStock}
+              aria-label={isProductInStock ? `Add ${product.name} to cart` : 'Out of stock'}
             >
               <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
-              <span>Add</span>
+              <span>{isProductInStock ? 'Add' : 'Out of Stock'}</span>
             </button>
           </div>
         </div>

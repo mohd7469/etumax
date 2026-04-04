@@ -26,8 +26,8 @@ const AdminSettings = () => {
     notificationPosition: 'bottom-right',
     notificationsEnabled: true,
     continueShoppingLink: '/',
-    deliveryCharge: 9.00,
-    freeShippingThreshold: 500.00,
+    deliveryCharge: '',
+    freeShippingThreshold: '',
   });
 
   const [currentSeoSettings, setCurrentSeoSettings] = useState(seoSettings);

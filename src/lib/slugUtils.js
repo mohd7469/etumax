@@ -5,7 +5,7 @@
 export const normalizeSlug = (slug) => {
   if (!slug) return '';
   const strSlug = String(slug);
-  
+
   let decoded = strSlug;
   try {
     decoded = decodeURIComponent(strSlug);
@@ -13,7 +13,7 @@ export const normalizeSlug = (slug) => {
     // If decodeURIComponent fails (e.g., malformed URI), fallback to the original string
     decoded = strSlug;
   }
-  
+
   return decoded
     .normalize('NFKC')
     .trim()

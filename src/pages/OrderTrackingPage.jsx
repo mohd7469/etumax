@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Helmet } from 'react-helmet-async';
@@ -276,8 +275,23 @@ const OrderTrackingPage = () => {
   useEffect(() => {
     const combinedOrders = [...localOrders, ...syncedOrders].map((o) => ({
       ...o,
-      trackingId: o.trackingId || `TRK${o.id}`,
+      trackingId: o.trackingId || o.tracking_id || `TRK${o.id}`,
+      billingAddress: o.billingAddress || o.billing || {},
+      shippingAddress: o.shippingAddress || o.shipping || {},
+      email:
+        o.email ||
+        o.billingAddress?.email ||
+        o.billing?.email ||
+        o.customerEmail ||
+        '',
+      phone:
+        o.phone ||
+        o.billingAddress?.phone ||
+        o.billing?.phone ||
+        o.customerPhone ||
+        '',
     }));
+
     setAllOrders(combinedOrders);
   }, [localOrders, syncedOrders]);
 
@@ -294,11 +308,46 @@ const OrderTrackingPage = () => {
     (valueToTrack) => {
       if (!valueToTrack) return { orders: [], field: '' };
 
-      const query = valueToTrack.trim().toLowerCase();
+      const query = String(valueToTrack).trim().toLowerCase();
       const normalizedQueryPhone = normalizePhone(valueToTrack);
 
+      const getOrderEmail = (o) =>
+        String(
+          o.billingAddress?.email ||
+          o.billing?.email ||
+          o.shippingAddress?.email ||
+          o.shipping?.email ||
+          o.email ||
+          o.customerEmail ||
+          o.customer?.email ||
+          o.userEmail ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+
+      const getOrderPhones = (o) => {
+        return [
+          o.billingAddress?.phone,
+          o.billing?.phone,
+          o.shippingAddress?.phone,
+          o.shipping?.phone,
+          o.phone,
+          o.customerPhone,
+          o.customer?.phone,
+          o.userPhone,
+          o.mobile,
+        ]
+          .filter(Boolean)
+          .map((v) => normalizePhone(v));
+      };
+
       const trackingMatches = allOrders.filter((o) => {
-        const trackingId = String(o.trackingId || '').trim().toLowerCase();
+        const trackingId = String(
+          o.trackingId || o.tracking_id || o.awb || ''
+        )
+          .trim()
+          .toLowerCase();
         return trackingId === query;
       });
 
@@ -313,7 +362,9 @@ const OrderTrackingPage = () => {
       }
 
       const orderIdMatches = allOrders.filter((o) => {
-        const orderId = String(o.id || '').trim().toLowerCase();
+        const orderId = String(o.id || o.orderId || o.order_id || '')
+          .trim()
+          .toLowerCase();
         return orderId === query;
       });
 
@@ -328,20 +379,17 @@ const OrderTrackingPage = () => {
       }
 
       const phoneMatches = allOrders.filter((o) => {
-        const billingPhone = normalizePhone(
-          o.billingAddress?.phone ||
-          o.billing?.phone ||
-          o.phone ||
-          o.customerPhone ||
-          ''
-        );
+        const phones = getOrderPhones(o);
 
-        const shippingPhone = normalizePhone(o.shippingAddress?.phone || '');
+        return phones.some((phone) => {
+          if (!phone || !normalizedQueryPhone) return false;
 
-        return (
-          normalizedQueryPhone &&
-          (billingPhone === normalizedQueryPhone || shippingPhone === normalizedQueryPhone)
-        );
+          return (
+            phone === normalizedQueryPhone ||
+            phone.endsWith(normalizedQueryPhone) ||
+            normalizedQueryPhone.endsWith(phone)
+          );
+        });
       });
 
       if (phoneMatches.length) {
@@ -355,17 +403,8 @@ const OrderTrackingPage = () => {
       }
 
       const emailMatches = allOrders.filter((o) => {
-        const billingEmail = String(
-          o.billingAddress?.email ||
-          o.billing?.email ||
-          o.email ||
-          o.customerEmail ||
-          ''
-        )
-          .trim()
-          .toLowerCase();
-
-        return billingEmail && billingEmail === query;
+        const email = getOrderEmail(o);
+        return email && email === query;
       });
 
       if (emailMatches.length) {

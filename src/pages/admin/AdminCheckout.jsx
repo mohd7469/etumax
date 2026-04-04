@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Save, Plus, GripVertical, Trash2, Edit, X, Code, FileText, Map } from 'lucide-react';
+import { Save, Plus, GripVertical, Trash2, Edit, X, Code, FileText, Map, Truck } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -113,9 +113,18 @@ const EditFieldModal = ({ field, isOpen, onClose, onSave }) => {
 
   const handleSave = () => {
     let finalData = { ...formData };
+
     if (['dropdown', 'radio'].includes(finalData.type)) {
-      finalData.options = optionsString.split(',').map(opt => opt.trim()).filter(Boolean).map(opt => ({ value: opt.toLowerCase().replace(/\s+/g, '-'), label: opt }));
+      finalData.options = optionsString
+        .split(',')
+        .map(opt => opt.trim())
+        .filter(Boolean)
+        .map(opt => ({
+          value: opt,   // save readable value instead of slug
+          label: opt
+        }));
     }
+
     onSave(finalData);
     onClose();
   };
@@ -315,6 +324,40 @@ const AdminCheckout = () => {
           </div>
 
           <div className="lg:col-span-1 space-y-8">
+            <Card className="shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><Truck className="w-5 h-5 text-purple-600" /> Shipping & Delivery</CardTitle>
+                <CardDescription>Configure delivery charges and free shipping thresholds.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="deliveryCharge">Delivery Charge</Label>
+                  <Input
+                    id="deliveryCharge"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={localSettings.deliveryCharge ?? 0}
+                    onChange={(e) => setLocalSettings(prev => ({ ...prev, deliveryCharge: e.target.value ? parseFloat(e.target.value) : 0 }))}
+                  />
+                  <p className="text-xs text-gray-500">Base shipping cost applied to orders.</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="freeShippingThreshold">Free Shipping Threshold</Label>
+                  <Input
+                    id="freeShippingThreshold"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={localSettings.freeShippingThreshold === Infinity ? '' : (localSettings.freeShippingThreshold ?? '')}
+                    onChange={(e) => setLocalSettings(prev => ({ ...prev, freeShippingThreshold: e.target.value ? parseFloat(e.target.value) : Infinity }))}
+                    placeholder="Leave empty for no free shipping"
+                  />
+                  <p className="text-xs text-gray-500">Orders above this amount get free shipping.</p>
+                </div>
+              </CardContent>
+            </Card>
+
             <Card className="shadow-sm">
               <CardHeader>
                 <CardTitle>Payment Methods</CardTitle>

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,7 +16,7 @@ import { writeSitemapFiles } from '@/lib/sitemapFileWriter';
 const SitemapRegenerator = () => {
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [lastGeneratedAt, setLastGeneratedAt] = useState(null);
-  const [baseUrl, setBaseUrl] = useState('https://www.etumaxgulf.com');
+  const [baseUrl, setBaseUrl] = useState('https://www.pharmacydxb.ae');
   const [isFetchingConfig, setIsFetchingConfig] = useState(true);
   const { toast } = useToast();
 

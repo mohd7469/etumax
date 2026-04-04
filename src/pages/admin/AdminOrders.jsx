@@ -6,7 +6,7 @@ import { useIntegrations } from '@/context/IntegrationContext';
 import { useCheckout } from '@/context/CheckoutContext';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Globe, X, ShoppingCart, User, MapPin, Hash, DollarSign, Search, FileUp, FileDown, ChevronsUpDown, Trash, MoreVertical, AlertTriangle, CheckSquare, Calendar as CalendarIcon, Settings2, FilterX, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Globe, X, ShoppingCart, Hash, DollarSign, Search, FileUp, FileDown, ChevronsUpDown, Trash, MoreVertical, AlertTriangle, CheckSquare, Calendar as CalendarIcon, Settings2, FilterX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -17,6 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Calendar } from '@/components/ui/calendar';
 import { useToast } from '@/components/ui/use-toast';
 import { downloadCsv, cn } from '@/lib/utils';
+import { updateDocument } from '@/lib/firestoreService';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 import { format, subDays, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfDay, endOfDay, isWithinInterval } from 'date-fns';
@@ -270,47 +271,63 @@ const datePresets = [
 ];
 
 const AdminOrders = () => {
-  const { orders: localOrders, updateOrderStatus: updateLocalOrderStatus, deleteMultipleOrders, addImportedOrders } = useUser();
+  const { orders: localOrders, deleteMultipleOrders, addImportedOrders } = useUser();
   const { formatPrice } = useProducts();
   const { syncedOrders, updateWcOrderStatus } = useIntegrations();
   const { settings: checkoutSettings } = useCheckout();
   const { toast } = useToast();
   
-  // State for Table and Modals
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [selectedOrders, setSelectedOrders] = useState([]);
   const [exportFormat, setExportFormat] = useState('csv');
   const fileInputRef = useRef(null);
 
-  // Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState({ from: undefined, to: undefined });
   const [statusFilter, setStatusFilter] = useState('all');
   const [visibleColumns, setVisibleColumns] = useState(defaultVisibleColumns);
   
-  // Pagination State
   const [itemsPerPage, setItemsPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
 
-  // Reset pagination when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, dateRange, statusFilter, itemsPerPage]);
 
   const allOrders = useMemo(() => {
     const ordersMap = new Map();
-    localOrders.forEach(order => ordersMap.set(order.id, order));
-    syncedOrders.forEach(order => ordersMap.set(order.id, order));
+    // Use String() mapping to avoid duplicating IDs of different types
+    if (localOrders) {
+      localOrders.forEach(order => {
+        if (order && order.id) ordersMap.set(String(order.id), order);
+      });
+    }
+    if (syncedOrders) {
+      syncedOrders.forEach(order => {
+        if (order && order.id) ordersMap.set(String(order.id), order);
+      });
+    }
     return Array.from(ordersMap.values());
   }, [localOrders, syncedOrders]);
 
-  const updateOrderStatus = (order, newStatus) => {
-    if (!order) return;
+  const updateOrderStatus = async (order, newStatus) => {
+    if (!order || !order.id) return;
 
-    if (order.sourceStoreName && order.sourceStoreName !== 'Local Store') {
-      updateWcOrderStatus(order, newStatus);
-    } else {
-      updateLocalOrderStatus(order.id, newStatus);
+    try {
+      if (order.sourceStoreName && order.sourceStoreName !== 'Local Store') {
+        if (updateWcOrderStatus) updateWcOrderStatus(order, newStatus);
+      } else {
+        // Fix: Call updateDocument correctly ensuring ID is preserved and duplicates are not created
+        await updateDocument('orders', order.id, { 
+          status: newStatus,
+          id: order.id, // Explicitly preserve the order ID
+          wooCommerceSync: true 
+        });
+        toast({ title: `Order #${order.wc_id || order.id} updated to ${newStatus}` });
+      }
+    } catch (error) {
+      console.error('Failed to update order status', error);
+      toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
     }
   };
 
@@ -369,7 +386,7 @@ const AdminOrders = () => {
       }
 
       return true;
-    }).sort((a, b) => new Date(b.date) - new Date(a.date));
+    }).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0));
   }, [allOrders, searchQuery, statusFilter, dateRange]);
 
   const paginatedOrders = useMemo(() => {
@@ -538,11 +555,11 @@ const AdminOrders = () => {
 
   const handleBulkStatusUpdate = (status) => {
     if (selectedOrders.length === 0) return;
-    selectedOrders.forEach(id => {
+    selectedOrders.forEach(async (id) => {
       const order = allOrders.find(o => o.id === id);
-      updateOrderStatus(order, status);
+      await updateOrderStatus(order, status);
     });
-    toast({ title: `Updated ${selectedOrders.length} orders to "${status}".` });
+    toast({ title: `Updated selected orders to "${status}".` });
     setSelectedOrders([]);
   };
 
@@ -743,7 +760,7 @@ const AdminOrders = () => {
                     
                     {visibleColumns.order && <td className="px-4 py-4 align-top font-medium text-gray-900 whitespace-nowrap">#{order.wc_id || order.id}</td>}
                     {visibleColumns.reference && <td className="px-4 py-4 align-top text-gray-500 overflow-hidden text-ellipsis">{order.transactionId || '-'}</td>}
-                    {visibleColumns.date && <td className="px-4 py-4 align-top text-gray-600 whitespace-nowrap">{format(new Date(order.date), "MMM d, yyyy h:mm a")}</td>}
+                    {visibleColumns.date && <td className="px-4 py-4 align-top text-gray-600 whitespace-nowrap">{format(new Date(order.date || 0), "MMM d, yyyy h:mm a")}</td>}
                     {visibleColumns.shipTo && <td className="px-4 py-4 align-top"><CustomerInfo order={order} /></td>}
                     {visibleColumns.billing && <td className="px-4 py-4 align-top text-gray-600">{order.billingAddress ? <><p>{order.billingAddress.first_name} {order.billingAddress.last_name}</p><p className="text-xs">{order.billingAddress.city}, {order.billingAddress.country}</p></> : 'Same as shipping'}</td>}
                     {visibleColumns.itemsAndNotes && <td className="px-4 py-4 align-top"><OrderProducts items={order.items} formatPrice={formatPrice} />{(order.notes || order.customerNote) && <div className="mt-2 text-xs bg-yellow-50 p-2 rounded border border-yellow-100 text-yellow-800 break-words"><strong>Note:</strong> {order.notes || order.customerNote}</div>}</td>}

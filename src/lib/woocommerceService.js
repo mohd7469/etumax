@@ -1,3 +1,4 @@
+
 export const createWooCommerceAuthHeader = (consumerKey, consumerSecret) => {
   return 'Basic ' + btoa(`${consumerKey}:${consumerSecret}`);
 };
@@ -30,10 +31,39 @@ export const validateWooCommerceCredentials = async (storeUrl, consumerKey, cons
   return makeRequest(url, { method: 'GET', headers });
 };
 
-export const fetchWooCommerceProducts = async (storeUrl, consumerKey, consumerSecret, page = 1, perPage = 100) => {
-  const url = `${storeUrl.replace(/\/$/, '')}/wp-json/wc/v3/products?page=${page}&per_page=${perPage}`;
-  const headers = { Authorization: createWooCommerceAuthHeader(consumerKey, consumerSecret) };
-  return makeRequest(url, { method: 'GET', headers });
+export const fetchWooCommerceProducts = async (storeUrl, consumerKey, consumerSecret, limit = 100, onProgress = null, cancelToken = { current: false }) => {
+  const totalPages = Math.ceil(limit / 100);
+  let allProducts = [];
+  
+  for (let page = 1; page <= totalPages; page++) {
+    if (cancelToken.current) break;
+    
+    const perPage = (page === totalPages && limit % 100 !== 0) ? limit % 100 : 100;
+    const url = `${storeUrl.replace(/\/$/, '')}/wp-json/wc/v3/products?page=${page}&per_page=${perPage}`;
+    const headers = { Authorization: createWooCommerceAuthHeader(consumerKey, consumerSecret) };
+    
+    try {
+      const data = await makeRequest(url, { method: 'GET', headers });
+      
+      if (data && Array.isArray(data)) {
+        allProducts = [...allProducts, ...data];
+      }
+      
+      if (onProgress) onProgress(page, totalPages);
+      
+      // If API returns fewer products than requested, we've hit the end
+      if (data.length < perPage) break;
+    } catch (error) {
+      console.error(`Error fetching page ${page}:`, error);
+      // Continue to next page instead of breaking completely
+    }
+  }
+  
+  return {
+    products: allProducts.slice(0, limit),
+    totalFetched: allProducts.length,
+    totalPages: Math.ceil(allProducts.length / 100) || 1
+  };
 };
 
 export const fetchWooCommerceOrders = async (storeUrl, consumerKey, consumerSecret, page = 1, perPage = 100) => {
@@ -136,7 +166,6 @@ export const transformWooCommerceProduct = (wcProduct, storeId = null, storeName
     }
   }
 
-  // Ensure prices are parsed as correct numbers
   const regularPrice = parseFloat(wcProduct.regular_price || wcProduct.price || 0);
   const salePrice = wcProduct.sale_price ? parseFloat(wcProduct.sale_price) : null;
   const effectivePrice = salePrice !== null ? salePrice : regularPrice;
@@ -150,7 +179,7 @@ export const transformWooCommerceProduct = (wcProduct, storeId = null, storeName
     price: effectivePrice,
     regularPrice: regularPrice,
     salePrice: salePrice,
-    originalPrice: regularPrice, // Backwards compatibility
+    originalPrice: regularPrice,
     categories: (wcProduct.categories || []).map(c => c.name),
     images: (wcProduct.images || []).map(img => img.src),
     inStock: wcProduct.stock_status === 'instock',

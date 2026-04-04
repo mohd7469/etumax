@@ -3,7 +3,7 @@
  * Automatically prepends the proxy URL to external requests.
  */
 export const apiFetch = async (url, options = {}) => {
-  const PROXY_URL = 'https://proxy.etumaxgulf.com/proxy.php?url=';
+  const PROXY_URL = 'https://proxy.pharmacydxb.ae/proxy.php?url=';
 
   if (!url || typeof url !== 'string') {
     const errorMsg = `Invalid URL passed to apiFetch: ${url}`;
