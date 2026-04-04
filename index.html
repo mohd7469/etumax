@@ -81,39 +81,49 @@
   <script type="module" src="/src/main.jsx"></script>
 
   <script>
-    // Priority 1: Service Worker ko har haal mein marna hai
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(function (registrations) {
-        if (registrations.length > 0) {
-          registrations.forEach(function (registration) {
-            registration.unregister().then(function () {
-              console.log('SW Unregistered Successfully');
-              // Cache saaf karke foran refresh
-              if ('caches' in window) {
-                caches.keys().then(function (names) {
-                  for (let name of names) caches.delete(name);
-                });
-              }
-              window.location.reload(true);
-            });
-          });
-        }
-      });
-    }
+    async function cleanupAndRefresh() {
+      let needsReload = false;
 
-    // Priority 2: Next Day / First Time Cleanup
-    (function () {
+      // 1. Service Worker Cleanup
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        if (registrations.length > 0) {
+          for (let reg of registrations) {
+            await reg.unregister();
+          }
+          console.log('SW Removed');
+          needsReload = true;
+        }
+      }
+
+      // 2. Cache API Cleanup
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        if (keys.length > 0) {
+          await Promise.all(keys.map(key => caches.delete(key)));
+          needsReload = true;
+        }
+      }
+
+      // 3. LocalStorage Cleanup (Once a day)
       const today = new Date().toLocaleDateString();
       const lastClearDate = localStorage.getItem('last_clear_date');
 
-      if (!lastClearDate || lastClearDate !== today) {
+      if (lastClearDate !== today) {
         localStorage.clear();
         localStorage.setItem('last_clear_date', today);
-        console.log('New Day/First Time: LocalStorage Cleared');
-        // Agar SW nahi tha phir bhi fresh load ke liye refresh karein
-        setTimeout(() => { window.location.reload(true); }, 200);
+        console.log('Daily Storage Clear Done');
+        needsReload = true;
       }
-    })();
+
+      // Final Action: Sirf ek baar reload karein agar kuch delete hua hai
+      if (needsReload) {
+        console.log('Final Refreshing...');
+        window.location.reload();
+      }
+    }
+
+    cleanupAndRefresh();
   </script>
 </body>
 
