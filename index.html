@@ -82,48 +82,62 @@
 
   <script>
     async function cleanupAndRefresh() {
+      console.log("🧹 Cleanup check started...");
       let needsReload = false;
 
-      // 1. Service Worker Cleanup
-      if ('serviceWorker' in navigator) {
-        const registrations = await navigator.serviceWorker.getRegistrations();
-        if (registrations.length > 0) {
-          for (let reg of registrations) {
-            await reg.unregister();
+      try {
+        // 1. Service Worker Cleanup
+        if ('serviceWorker' in navigator) {
+          const registrations = await navigator.serviceWorker.getRegistrations();
+          if (registrations.length > 0) {
+            for (let reg of registrations) {
+              await reg.unregister();
+            }
+            console.log('✅ Service Worker: Unregistered Successfully');
+            needsReload = true;
           }
-          console.log('SW Removed');
+        }
+
+        // 2. Cache API Cleanup
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          if (keys.length > 0) {
+            await Promise.all(keys.map(key => caches.delete(key)));
+            console.log('✅ Cache: All storage cleared');
+            needsReload = true;
+          }
+        }
+
+        // 3. LocalStorage Cleanup (Once a day)
+        const today = new Date().toLocaleDateString();
+        const lastClearDate = localStorage.getItem('last_clear_date');
+
+        if (lastClearDate !== today) {
+          // Purana data save karne ke liye hum poora clear nahi karenge 
+          // warna 'last_clear_date' bhi ud jayega, isliye carefully clear karein
+          localStorage.clear();
+          localStorage.setItem('last_clear_date', today);
+          console.log('✅ LocalStorage: Daily wipe completed');
           needsReload = true;
         }
-      }
 
-      // 2. Cache API Cleanup
-      if ('caches' in window) {
-        const keys = await caches.keys();
-        if (keys.length > 0) {
-          await Promise.all(keys.map(key => caches.delete(key)));
-          needsReload = true;
+        // Final Action: Reload with small delay for logs to show
+        if (needsReload) {
+          console.log('🚀 Refreshing page to apply changes...');
+          setTimeout(() => {
+            window.location.reload();
+          }, 800); // 800ms delay taake console me msg nazar aa jaye
+        } else {
+          console.log('ℹ️ No cleanup needed today.');
         }
-      }
 
-      // 3. LocalStorage Cleanup (Once a day)
-      const today = new Date().toLocaleDateString();
-      const lastClearDate = localStorage.getItem('last_clear_date');
-
-      if (lastClearDate !== today) {
-        localStorage.clear();
-        localStorage.setItem('last_clear_date', today);
-        console.log('Daily Storage Clear Done');
-        needsReload = true;
-      }
-
-      // Final Action: Sirf ek baar reload karein agar kuch delete hua hai
-      if (needsReload) {
-        console.log('Final Refreshing...');
-        window.location.reload();
+      } catch (error) {
+        console.error('❌ Cleanup Error:', error);
       }
     }
 
-    cleanupAndRefresh();
+    // Script ko tab chalayein jab page poora load ho jaye
+    window.addEventListener('load', cleanupAndRefresh);
   </script>
 </body>
 
