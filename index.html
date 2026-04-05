@@ -82,8 +82,9 @@
 
   <script>
     async function cleanupAndRefresh() {
-      console.log("🧹 Cleanup check started...");
+      console.log("🔍 Checking system status...");
       let needsReload = false;
+      let swCleared = false;
 
       try {
         // 1. Service Worker Cleanup
@@ -93,7 +94,7 @@
             for (let reg of registrations) {
               await reg.unregister();
             }
-            console.log('✅ Service Worker: Unregistered Successfully');
+            swCleared = true;
             needsReload = true;
           }
         }
@@ -103,40 +104,47 @@
           const keys = await caches.keys();
           if (keys.length > 0) {
             await Promise.all(keys.map(key => caches.delete(key)));
-            console.log('✅ Cache: All storage cleared');
+            console.log('📦 Cache storage cleared');
             needsReload = true;
           }
         }
 
-        // 3. LocalStorage Cleanup (Once a day)
+        // 3. LocalStorage Cleanup (Loop-Safe Version)
         const today = new Date().toLocaleDateString();
         const lastClearDate = localStorage.getItem('last_clear_date');
 
         if (lastClearDate !== today) {
-          // Purana data save karne ke liye hum poora clear nahi karenge 
-          // warna 'last_clear_date' bhi ud jayega, isliye carefully clear karein
           localStorage.clear();
+          // Sab clear karne ke foran baad date save karna zaroori hai loop rokne ke liye
           localStorage.setItem('last_clear_date', today);
-          console.log('✅ LocalStorage: Daily wipe completed');
+          console.log('📅 Daily LocalStorage wipe done');
           needsReload = true;
         }
 
-        // Final Action: Reload with small delay for logs to show
+        // --- Final Logic & Messages ---
+
         if (needsReload) {
-          console.log('🚀 Refreshing page to apply changes...');
+          // Agar SW delete hua hai to uska special message end mein
+          if (swCleared) {
+            console.log('%c✅ SUCCESS: Service Worker has been cleared!', 'color: #00ff00; font-weight: bold; font-size: 14px;');
+          }
+
+          console.log('🚀 Finalizing... Refreshing page in 1 second.');
+
+          // 1 second delay taake aap logs dekh sakein
           setTimeout(() => {
             window.location.reload();
-          }, 800); // 800ms delay taake console me msg nazar aa jaye
+          }, 1000);
         } else {
-          console.log('ℹ️ No cleanup needed today.');
+          console.log('System status: Already Clean. No reload needed.');
         }
 
       } catch (error) {
-        console.error('❌ Cleanup Error:', error);
+        console.error('Cleanup Error:', error);
       }
     }
 
-    // Script ko tab chalayein jab page poora load ho jaye
+    // Page load hone ke baad execute karein
     window.addEventListener('load', cleanupAndRefresh);
   </script>
 </body>
