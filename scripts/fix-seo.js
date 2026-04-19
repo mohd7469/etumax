@@ -1,9 +1,9 @@
+
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, onSnapshot, doc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import process from 'process';
 // Import central route configuration
 import { routes as STATIC_ROUTES, defaultSEO } from '../src/config/routes.js';
 import { baseURL } from '../src/config/routes.js';
@@ -13,7 +13,7 @@ const CANONICAL_DOMAIN = defaultSEO.canonicalBase || baseURL;
 const DIST_PATH = './dist';
 const DEFAULT_IMAGE = defaultSEO.defaultImage || baseURL + '/logo.png';
 
-const firebaseConfig = {
+const FIREBASE_CONFIG = {
   apiKey: "AIzaSyCj5YhAoZ7THB2_aCq9UTB8Fq7QlOFkqwg",
   authDomain: "project-4a63e079-13f8-45c1-834.firebaseapp.com",
   projectId: "project-4a63e079-13f8-45c1-834",
@@ -88,7 +88,7 @@ const injectMetaTags = (html, metadata) => {
 
 const stripHtml = (html) => html ? html.replace(/<[^>]*>?/gm, '').replace(/\s+/g, ' ').trim() : '';
 
-const app = initializeApp(firebaseConfig);
+const app = initializeApp(FIREBASE_CONFIG);
 const db = getFirestore(app);
 
 const fixSEO = async () => {
@@ -146,17 +146,27 @@ const fixSEO = async () => {
   }
 
   console.log("📦 Fetching products from Firestore...");
-  const unsub = onSnapshot(collection(db, "products"), (snapshot) => {
-    console.log(`✨ Found ${snapshot.size} products. Injecting tags...`);
+  try {
+    const snapshot = await getDocs(collection(db, "products"));
+    const total = snapshot.size;
+    console.log(`✨ Found ${total} products. Injecting tags...`);
+
     snapshot.forEach((doc) => {
       const p = doc.data();
-      const slug = p.slug || generateSlug(p.name) || p.id;
+      const slug = p.slug || generateSlug(p.name) || doc.id;
       const folderPath = path.join(DIST_PATH, 'product', slug);
       if (!fs.existsSync(folderPath)) fs.mkdirSync(folderPath, { recursive: true });
+
       const price = p.price ? ` - Only AED ${p.price}` : '';
       const productTitle = `${p.name}${price} | ${activeStoreName}`;
       const productDesc = stripHtml(p.description || p.metaDescription || p.shortDescription || "").substring(0, 350);
-      const productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
+      let productImage = (Array.isArray(p.images) && p.images[0]) || p.image;
+
+      // Wrap with wsrv.nl CDN for instant optimization (< 600KB)
+      if (productImage && productImage.startsWith('http')) {
+        productImage = `https://wsrv.nl/?url=${encodeURIComponent(productImage)}&w=1200&h=630&fit=contain&bg=ffffff&output=jpg&q=70&il`;
+      }
+
       const updatedHtml = injectMetaTags(baseHtml, {
         title: productTitle,
         description: productDesc,
@@ -165,16 +175,12 @@ const fixSEO = async () => {
       });
       fs.writeFileSync(path.join(folderPath, 'index.html'), updatedHtml);
     });
-    console.log("✅ All static product pages generated!");
-    unsub();
+
+    console.log("✅ All static product pages generated successfully!");
     process.exit(0);
-  }, (error) => {
-    console.error("❌ Firebase error:", error);
+  } catch (error) {
+    console.error("❌ Error fetching products:", error);
     process.exit(1);
-  });
-  setTimeout(() => {
-    console.warn("⚠️ Snapshot timeout. Closing script.");
-    process.exit(0);
-  }, 30000);
+  }
 };
 fixSEO();
